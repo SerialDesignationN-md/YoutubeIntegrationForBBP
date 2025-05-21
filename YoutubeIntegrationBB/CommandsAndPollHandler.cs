@@ -263,7 +263,7 @@ namespace YoutubeIntegrationBB
 
         public IEnumerator ExecuteCommand(string CommandName, [Optional]object[] Args)
         {
-            
+           
             switch (CommandName)
             {
                 default:
@@ -304,27 +304,16 @@ namespace YoutubeIntegrationBB
                     break;
                 case "SpeedUpNpcs":
                     ec = Singleton<BaseGameManager>.Instance.Ec;
-                    var timeScaleEpik = new TimeScaleModifier(1.3f, 1, 1);
-                    ec.AddTimeScale(timeScaleEpik);
-                    NewGauge(30, BasePlugin.asm.Get<Sprite>("Spr_NpcSpeedUp"));
-                    yield return new WaitForSeconds(30f);
-                    ec.RemoveTimeScale(timeScaleEpik);
+                    StartCoroutine(new SpeedCommandsHandler().Execute(["Npc",ec]));
+                    
                     break;
                 case "SpeedUpEnvironment":
                     ec = Singleton<BaseGameManager>.Instance.Ec;
-                    var timeScaleEpikEnv = new TimeScaleModifier(1, 1.75f,1);
-                    ec.AddTimeScale(timeScaleEpikEnv);
-                    NewGauge(30, BasePlugin.asm.Get<Sprite>("Spr_EnvSpeedUp"));
-                    yield return new WaitForSeconds(30f);
-                    ec.RemoveTimeScale(timeScaleEpikEnv);
+                    StartCoroutine(new SpeedCommandsHandler().Execute(["Env", ec]));
                     break;
                 case "SpeedUpPlayer":
                     ec = Singleton<BaseGameManager>.Instance.Ec;
-                    var timeScaleEpikPlr = new TimeScaleModifier(1f, 1, 1.35f);
-                    ec.AddTimeScale(timeScaleEpikPlr);
-                    NewGauge(30, BasePlugin.asm.Get<Sprite>("Spr_PlrSpeedUp"));
-                    yield return new WaitForSeconds(30f);
-                    ec.RemoveTimeScale(timeScaleEpikPlr);
+                    StartCoroutine(new SpeedCommandsHandler().Execute(["Player", ec]));
                     break;
                 case "GiveRandomYtp":
                     Singleton<CoreGameManager>.Instance.AddPoints(UnityEngine.Random.Range(-100,101)*10,0, true);
@@ -348,8 +337,7 @@ namespace YoutubeIntegrationBB
                     var allNpcs = NPCMetaStorage.Instance.All();
                     var choosenNpc = allNpcs[UnityEngine.Random.Range(0, allNpcs.Length)].value;
                     ec = Singleton<BaseGameManager>.Instance.Ec;
-                    var cells = ec.AllTilesNoGarbage(false, false);
-                    ec.SpawnNPC(choosenNpc, cells[UnityEngine.Random.Range(0, cells.Count)].position);
+                    StartCoroutine(new SpawnNpcHandler().Execute([choosenNpc, 0, 1, ec, ""]));
                     break;
                 case "AngerBaldiTemp":
                     ec = Singleton<BaseGameManager>.Instance.Ec;
@@ -446,46 +434,22 @@ namespace YoutubeIntegrationBB
                     break;
                 case "Spawn99Chalkles":
                     ec = Singleton<BaseGameManager>.Instance.Ec;
-                    var cells2 = ec.AllTilesNoGarbage(false, false);
-                    for (int i = 0; i < 99; i++)
-                    {
-                        ec.SpawnNPC(NPCMetaStorage.Instance.All().First(x => (x.value.name == "ChalkFace")).value, cells2[UnityEngine.Random.Range(0, cells2.Count)].position);
-                    }
+                    
+                    StartCoroutine(new SpawnNpcHandler().Execute([NPCMetaStorage.Instance.Get(Character.Chalkles).value, 0, 99, ec, ""]));
                     break;
                 case "Spawn99Beans":
                     ec = Singleton<BaseGameManager>.Instance.Ec;
-                    var cells3 = ec.AllTilesNoGarbage(false, false);
-                    for (int i = 0; i < 99; i++)
-                    {
-                        ec.SpawnNPC(NPCMetaStorage.Instance.All().First(x => (x.value.name == "Beans")).value, cells3[UnityEngine.Random.Range(0, cells3.Count)].position);
-                    }
+                    StartCoroutine(new SpawnNpcHandler().Execute([NPCMetaStorage.Instance.Get(Character.Beans).value, 0, 99, ec, ""]));
 
                     break;
                 case "Spawn99Tests":
                     ec = Singleton<BaseGameManager>.Instance.Ec;
-                    var cells6 = ec.AllTilesNoGarbage(false, false);
-                    for (int i = 0; i < 99; i++)
-                    {
-                        
-                        ec.SpawnNPC(NPCMetaStorage.Instance.All().First(x => (x.value.name == "NoLateTeacher")).value, cells6[UnityEngine.Random.Range(0, cells6.Count)].position);
-                    }
+                    StartCoroutine(new SpawnNpcHandler().Execute([NPCMetaStorage.Instance.Get(Character.LookAt).value, 0, 99, ec, ""]));
 
                     break;
                 case "Spawn99Baldis":
                     ec = Singleton<BaseGameManager>.Instance.Ec;
-                    var cells5 = ec.AllTilesNoGarbage(false, false);
-                    NPC[] Baldis = [];
-                    for (int i = 0; i < 99; i++)
-                    {
-                        Baldis = Baldis.AddToArray(ec.SpawnNPC(Singleton<BaseGameManager>.Instance.levelObject.potentialBaldis[0].selection, cells5[UnityEngine.Random.Range(0, cells5.Count)].position));
-                    }
-                    NewGauge(10, BasePlugin.asm.Get<Sprite>("Spr_99baldi"));
-                    Singleton<CoreGameManager>.Instance.audMan.PlaySingle(BasePlugin.asm.Get<SoundObject>("Mus_Ohnoes"));
-                    yield return new WaitForSeconds(10);
-                    foreach (var item in Baldis)
-                    {
-                        item.Despawn();
-                    }
+                    StartCoroutine(new SpawnNpcHandler().Execute([NPCMetaStorage.Instance.Get(Character.Baldi).value, 10, 15, ec, "baldi"]));
 
                     break;
                 case "UseItem":
@@ -576,5 +540,86 @@ namespace YoutubeIntegrationBB
             yield return "";
         }
 
+    }
+
+    abstract class CommandsConstruct
+    {
+        internal abstract IEnumerator Execute([Optional] object[] args);
+    }
+    class SpeedCommandsHandler : CommandsConstruct
+    {
+        Commands Cmd;
+        EnvironmentController ec;
+        internal override IEnumerator Execute([Optional] object[] args)
+        {
+            // 0 == Type Of Command
+            // 1 == EnviromnentController
+            Cmd = BasePlugin.Instance.CPH.CmdsComp;
+            ec = (EnvironmentController)args[1];
+            var timeScale= new TimeScaleModifier(1.3f, 1, 1);
+            var sprite = "Spr_NpcSpeedUp";
+            var duration = 30f;
+            switch ((string)args[0])
+            {
+                case "Player":
+                    sprite = "Spr_PlrSpeedUp";
+                    timeScale = new TimeScaleModifier(1f, 1.3f, 1);
+                    break;
+                case "Npc":
+                    sprite = "Spr_NpcSpeedUp";
+                    timeScale = new TimeScaleModifier(1.3f, 1f, 1);
+                    break;
+                case "Env":
+                    sprite = "Spr_EnvSpeedUp";
+                    timeScale = new TimeScaleModifier(1f, 1f, 1.3f);
+                    break;
+
+            }
+            ec.AddTimeScale(timeScale);
+            Cmd.NewGauge(duration, BasePlugin.asm.Get<Sprite>(sprite));
+            yield return new WaitForSeconds(duration);
+            ec.RemoveTimeScale(timeScale);
+        }
+    }
+    class SpawnNpcHandler : CommandsConstruct
+    {
+        Commands Cmd;
+        EnvironmentController ec;
+        NPC[] npcs;
+        // 0 = Npc
+        // 1 = Duration
+        // 2 = How many
+        // 3 = Ec
+        // 4 = Special Type
+        
+        internal override IEnumerator Execute([Optional] object[] args)
+        {
+            Cmd = BasePlugin.Instance.CPH.CmdsComp;
+            ec = (EnvironmentController)args[3];
+            var cells = ec.AllTilesNoGarbage(false, false);
+            var npc = args[0];
+            var duration = (float)args[1];
+            var howMany = (int)args[2];
+            var specialType = (string)args[4];  
+            for (int i = 0; i < howMany; i++)
+            {
+
+                npcs = npcs.AddToArray(ec.SpawnNPC((NPC)npc, cells[UnityEngine.Random.Range(0, cells.Count)].position));
+                yield return new WaitForEndOfFrame();
+            }
+            if (specialType == "baldi")
+            {
+                Singleton<CoreGameManager>.Instance.audMan.PlaySingle(BasePlugin.asm.Get<SoundObject>("Mus_Ohnoes"));
+            }
+            if (duration > 0.1f)
+            {
+                Cmd.NewGauge(duration, BasePlugin.asm.Get<Sprite>("Spr_EnvSpeedUp"));
+                yield return new WaitForSeconds(duration);
+                foreach (var item in npcs)
+                {
+                    item.Despawn();
+                }
+            }
+        }
     }
 }
