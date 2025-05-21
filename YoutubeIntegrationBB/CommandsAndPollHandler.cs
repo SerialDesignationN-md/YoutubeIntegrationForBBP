@@ -7,9 +7,10 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Runtime.Serialization;
 using System.Text;
+using UnityEngine.UI;
 using TMPro;
 using UnityEngine;
-using YTLiveChat.Contracts.Services;
+
 
 
 namespace YoutubeIntegrationBB
@@ -29,6 +30,7 @@ namespace YoutubeIntegrationBB
         public int[] votes;
         internal bool canVote = false;
         private TextMeshProUGUI inst;
+        Coroutine CurrentPollCoroutine;
         public void NewCommand(string NameCommand, string nameShownOnStream, string TypeOfCommand, [Optional]object[] args)
         {
             var NewCommand = new CommandType();
@@ -60,9 +62,18 @@ namespace YoutubeIntegrationBB
             NewCommand("NeverGonnaGiveYou", "Never gonna give you up never gonna let you down", "Troll");
             NewCommand("Distraction", "A loud music plays constantly alerting baldi of your location till the end of the music", "Disadvantage");
             NewCommand("Spawn99Chalkles", "Spawns 99 chalkles", "Troll");
+            NewCommand("Spawn99Beans", "Spawns 99 beans", "Troll");
+            NewCommand("Spawn99Baldis", "Spawns 99 baldis", "Troll");
             NewCommand("UseItem", "forcefully uses an item", "Disadvantage");
-            NewCommand("NoStamina", "The stamina is set to 0", "Disadvantage");
-
+            NewCommand("NoStamina", "no stamina for 30 seconds, using anything to give stamina back will be useless", "Disadvantage");
+            NewCommand("EnragedBaldi", "Baldi will get super angry for 10 seconds", "Disadvantage");
+            // NewCommand("Spawn99Tests", "Spawn 99 ms pomps", "Troll");
+            NewCommand("TooFast", "The environment will speed up 5x faster making the timer go down very quick", "Disadvantage");
+            NewCommand("Negative500stamina", "Negative -500 for the stamina", "Disadvantage");
+            NewCommand("Frozen", "Everything excluding you will be frozen for 10 seconds", "Advantage");
+            NewCommand("BaldiIsHappier", "baldi will calm down", "Advantage");
+            NewCommand("CrazyNpcSpeed", "all npcs will speed up by 20x for 2 seconds and the duration gets longer everytime this is selected (resets when going to the next floor or dying)", "UltraDisadvantage");
+            
 
 
         }
@@ -73,55 +84,55 @@ namespace YoutubeIntegrationBB
             DontDestroyOnLoad(CmdsComp.gameObject);
 
             votes = [0, 0, 0, 0, 0];
-            usersAlreadyVoted = ["0"];
+            usersAlreadyVoted = [];
             canVote = false;
+
+            BasePlugin.Instance.YoutubeHandle.callback = VoteHandler;
+
+            CurrentPollCoroutine = StartCoroutine(VotePollHandler());
             
-            BasePlugin.Instance.YoutubeHandle._ytLiveChat.InitialPageLoaded += (sender, e) =>
-            {
-                Debug.Log("YouTube LiveChat Connected!");
-                BasePlugin.Instance.YoutubeHandle._ytLiveChat.ChatReceived += VoteHandler;
-                StartCoroutine(VotePollHandler());
-            };
-            BasePlugin.Instance.YoutubeHandle.Begin(BasePlugin.Instance.VideoID.Value);
 
         }
 
 
-        internal void VoteHandler(object? sender, ChatReceivedEventArgs e)
+        internal void VoteHandler(ChatMessage ChatMessage)
         {
-            Debug.Log("New chat");
-            foreach (var user in usersAlreadyVoted)
+           if (!usersAlreadyVoted.Contains(ChatMessage.Author) && canVote)
             {
-                if (user != e.ChatItem.Author.ChannelId && canVote)
+                for (int i = 1; i < 6; i++)
                 {
-                    for (int i = 1; i < 5; i++)
+                    if (ChatMessage.Message == i.ToString())
                     {
-
-                        if (e.ChatItem.Message.Select(p => p.ToString()).ToString() == i.ToString()) 
-                        {
-                            votes[i - 1] += 1;
-                            usersAlreadyVoted = usersAlreadyVoted.AddToArray(e.ChatItem.Author.ChannelId);
-                        }
+                        usersAlreadyVoted = usersAlreadyVoted.AddToArray(ChatMessage.Author);
+                        votes[i - 1] += 1;
                     }
                 }
             }
+            
         }
 
         public void Stop()
         {
             Destroy(CmdsComp.gameObject);
             Destroy(inst);
-            StopCoroutine(VotePollHandler());
+            if (CurrentPollCoroutine != null)
+            {
+                StopCoroutine(CurrentPollCoroutine);
+            }
             votes = [0, 0, 0, 0, 0];
-            usersAlreadyVoted = ["0"];
+            usersAlreadyVoted = [];
             canVote = false;
-            BasePlugin.Instance.YoutubeHandle._ytLiveChat.ChatReceived -= VoteHandler;
+            BasePlugin.Instance.YoutubeHandle.callback = (e) =>
+            {
+
+            };
             foreach (var item in Choices)
             {
                 Destroy(item.gameObject);
             }
             Choices = [];
-            BasePlugin.Instance.YoutubeHandle.Stop("");
+            
+            
 
         }
 
@@ -154,6 +165,8 @@ namespace YoutubeIntegrationBB
                         text.rectTransform.anchorMin = new Vector2(0.35f, 0.25f + 0.1f * i);
                         text.rectTransform.sizeDelta = new Vector2(350, 100);
                         text.horizontalAlignment = HorizontalAlignmentOptions.Left;
+                        
+                        
                         switch (ChoicesCmds[i].TypeOfCommand)
                         {
                             default:
@@ -161,6 +174,10 @@ namespace YoutubeIntegrationBB
                                 break;
                             case "Disadvantage":
                                 text.color = Color.red;
+                                
+                                break;
+                            case "UltraDisadvantage":
+                                text.color = new Color(0.5f,0,0);
                                 break;
                             case "Advantage":
                                 text.color = Color.green;
@@ -221,8 +238,26 @@ namespace YoutubeIntegrationBB
     {
         
         private EnvironmentController ec;
+        private float durationCommandNpc = 2;
+        private IEnumerator NewGaugeCoroutine(float timelast, Sprite sprite)
+        {
+            var newGauge = Singleton<CoreGameManager>.Instance.GetHud(0).gaugeManager.ActivateNewGauge(sprite, timelast);
+            var timeleft = timelast;
+            yield return new WaitForSeconds(0.05f);
+            while (timeleft > 0)
+            {
+                timeleft -= Time.deltaTime * Time.timeScale;
+                newGauge.SetValue(timelast, timeleft);
+                yield return null;
+            }
 
-        
+            newGauge.Deactivate();
+        }
+
+        internal void NewGauge(float time, Sprite sprite)
+        {
+            StartCoroutine(NewGaugeCoroutine(time, sprite));
+        }
 
 
 
@@ -245,6 +280,7 @@ namespace YoutubeIntegrationBB
                     };
                     ec.AddFog(fog);
                     ec.UpdateFog();
+                    NewGauge(60, BasePlugin.asm.Get<Sprite>("Spr_FogIsHere"));
                     yield return new WaitForSeconds(60);
                     ec.RemoveFog(fog);
                     ec.UpdateFog();
@@ -257,16 +293,20 @@ namespace YoutubeIntegrationBB
                     {
                         foreach (var door in rooms.doors)
                         {
+                            door.Shut();
                             door.LockTimed(10);
                             yield return new WaitForSeconds(0.08f);
                         }
                     }
+                    NewGauge(10, BasePlugin.asm.Get<Sprite>("Spr_LockedDoors"));
+
 
                     break;
                 case "SpeedUpNpcs":
                     ec = Singleton<BaseGameManager>.Instance.Ec;
                     var timeScaleEpik = new TimeScaleModifier(1.3f, 1, 1);
                     ec.AddTimeScale(timeScaleEpik);
+                    NewGauge(30, BasePlugin.asm.Get<Sprite>("Spr_NpcSpeedUp"));
                     yield return new WaitForSeconds(30f);
                     ec.RemoveTimeScale(timeScaleEpik);
                     break;
@@ -274,6 +314,7 @@ namespace YoutubeIntegrationBB
                     ec = Singleton<BaseGameManager>.Instance.Ec;
                     var timeScaleEpikEnv = new TimeScaleModifier(1, 1.75f,1);
                     ec.AddTimeScale(timeScaleEpikEnv);
+                    NewGauge(30, BasePlugin.asm.Get<Sprite>("Spr_EnvSpeedUp"));
                     yield return new WaitForSeconds(30f);
                     ec.RemoveTimeScale(timeScaleEpikEnv);
                     break;
@@ -281,6 +322,7 @@ namespace YoutubeIntegrationBB
                     ec = Singleton<BaseGameManager>.Instance.Ec;
                     var timeScaleEpikPlr = new TimeScaleModifier(1f, 1, 1.35f);
                     ec.AddTimeScale(timeScaleEpikPlr);
+                    NewGauge(30, BasePlugin.asm.Get<Sprite>("Spr_PlrSpeedUp"));
                     yield return new WaitForSeconds(30f);
                     ec.RemoveTimeScale(timeScaleEpikPlr);
                     break;
@@ -294,6 +336,7 @@ namespace YoutubeIntegrationBB
                     {
                         npc.Navigator.Entity.SetHidden(true);
                     }
+                    NewGauge(30, BasePlugin.asm.Get<Sprite>("Spr_Invisible"));
                     yield return new WaitForSeconds(30);
                     foreach (var npc in ec.Npcs)
                     {
@@ -322,6 +365,7 @@ namespace YoutubeIntegrationBB
                     break;
                 case "PraiseBaldi":
                     ec = Singleton<BaseGameManager>.Instance.Ec;
+                    NewGauge(5, BasePlugin.asm.Get<Sprite>("Spr_HappyBaldi"));
                     ec.GetBaldi().Praise(5);
                     break;
                 case "ResetActivities":
@@ -345,6 +389,7 @@ namespace YoutubeIntegrationBB
                         }
 
                     }
+                    NewGauge(30, BasePlugin.asm.Get<Sprite>("Spr_Silent"));
                     yield return new WaitForSeconds(30);
                     foreach (var npc in ec.Npcs)
                     {
@@ -382,14 +427,16 @@ namespace YoutubeIntegrationBB
                     ec = Singleton<BaseGameManager>.Instance.Ec;
                     var timeScaleEpikPlr2 = new TimeScaleModifier(1f, 1, 0f);
                     ec.AddTimeScale(timeScaleEpikPlr2);
+                    NewGauge(7, BasePlugin.asm.Get<Sprite>("Spr_Stun"));
                     yield return new WaitForSeconds(7f);
                     ec.RemoveTimeScale(timeScaleEpikPlr2);
                     break;
                 case "NeverGonnaGiveYou":
-                    Application.OpenURL("https://www.youtube.com/watch?v=dQw4w9WgXcQ");
+                    Application.OpenURL("https://www.youtube.com/watch?v=GqmMCjLzn4I");
                     break;
                 case "Distraction":
                     Singleton<CoreGameManager>.Instance.audMan.PlaySingle(BasePlugin.asm.Get<SoundObject>("Mus_Distraction"));
+                    NewGauge(45, BasePlugin.asm.Get<Sprite>("Spr_LoudMusic"));
                     for (int i = 0; i < 43; i++) {
 
                         yield return new WaitForSeconds(1f);
@@ -404,14 +451,126 @@ namespace YoutubeIntegrationBB
                     {
                         ec.SpawnNPC(NPCMetaStorage.Instance.All().First(x => (x.value.name == "ChalkFace")).value, cells2[UnityEngine.Random.Range(0, cells2.Count)].position);
                     }
-                    
+                    break;
+                case "Spawn99Beans":
+                    ec = Singleton<BaseGameManager>.Instance.Ec;
+                    var cells3 = ec.AllTilesNoGarbage(false, false);
+                    for (int i = 0; i < 99; i++)
+                    {
+                        ec.SpawnNPC(NPCMetaStorage.Instance.All().First(x => (x.value.name == "Beans")).value, cells3[UnityEngine.Random.Range(0, cells3.Count)].position);
+                    }
+
+                    break;
+                case "Spawn99Tests":
+                    ec = Singleton<BaseGameManager>.Instance.Ec;
+                    var cells6 = ec.AllTilesNoGarbage(false, false);
+                    for (int i = 0; i < 99; i++)
+                    {
+                        
+                        ec.SpawnNPC(NPCMetaStorage.Instance.All().First(x => (x.value.name == "NoLateTeacher")).value, cells6[UnityEngine.Random.Range(0, cells6.Count)].position);
+                    }
+
+                    break;
+                case "Spawn99Baldis":
+                    ec = Singleton<BaseGameManager>.Instance.Ec;
+                    var cells5 = ec.AllTilesNoGarbage(false, false);
+                    NPC[] Baldis = [];
+                    for (int i = 0; i < 99; i++)
+                    {
+                        Baldis = Baldis.AddToArray(ec.SpawnNPC(Singleton<BaseGameManager>.Instance.levelObject.potentialBaldis[0].selection, cells5[UnityEngine.Random.Range(0, cells5.Count)].position));
+                    }
+                    NewGauge(10, BasePlugin.asm.Get<Sprite>("Spr_99baldi"));
+                    Singleton<CoreGameManager>.Instance.audMan.PlaySingle(BasePlugin.asm.Get<SoundObject>("Mus_Ohnoes"));
+                    yield return new WaitForSeconds(10);
+                    foreach (var item in Baldis)
+                    {
+                        item.Despawn();
+                    }
+
                     break;
                 case "UseItem":
                     Singleton<CoreGameManager>.Instance.GetPlayer(0).itm.UseItem();
                     break;
                 case "NoStamina":
-                    Singleton<CoreGameManager>.Instance.GetPlayer(0).plm.stamina = 0;
+                    var timeleft = 30f;
+                    NewGauge(30, BasePlugin.asm.Get<Sprite>("Spr_NoStamina"));
+                    while (timeleft > 0f)
+                    {
+                        Singleton<CoreGameManager>.Instance.GetPlayer(0).plm.stamina = 0;
+                        timeleft = Time.deltaTime;
+                        yield return null;
+                    }
                     break;
+                case "EnragedBaldi":
+                    ec = Singleton<BaseGameManager>.Instance.Ec;
+                    ec.GetBaldi().GetAngry(20f);
+                    NewGauge(10, BasePlugin.asm.Get<Sprite>("Spr_AngryBaldi"));
+                    yield return new WaitForSeconds(10);
+                    ec.GetBaldi().GetAngry(-20f);
+                    break;
+                case "Frozen":
+                    ec = Singleton<BaseGameManager>.Instance.Ec;
+                    var timescale = new TimeScaleModifier(1, 1, 1);
+                    ec.AddTimeScale(timescale);
+                    while (timescale.environmentTimeScale >= 0.05f && timescale.npcTimeScale >= 0.05f)
+                    {
+                        timescale.npcTimeScale = Mathf.Lerp(timescale.npcTimeScale, 0, 0.02f);
+                        timescale.environmentTimeScale = Mathf.Lerp(timescale.environmentTimeScale, 0, 0.02f);
+                        yield return null;
+                    }
+                    NewGauge(10, BasePlugin.asm.Get<Sprite>("Spr_Frozenr"));
+                    yield return new WaitForSeconds(10);
+                    ec.RemoveTimeScale(timescale);
+                    break;
+                case "Framed":
+                    Singleton<CoreGameManager>.Instance.GetPlayer(0).RuleBreak("Running", 30, 50);
+                    NewGauge(30, BasePlugin.asm.Get<Sprite>("Spr_PlaceHolder"));
+                    
+                    
+                    break;
+                case "TooFast":
+                    ec = Singleton<BaseGameManager>.Instance.Ec;
+                    var timeScaleEpikEnv2 = new TimeScaleModifier(1, 5f, 1);
+                    ec.AddTimeScale(timeScaleEpikEnv2);
+                    Singleton<CoreGameManager>.Instance.GetHud(0).BaldiTv.ShowLevelTimeWarning(ec);
+                    NewGauge(10, BasePlugin.asm.Get<Sprite>("Spr_EnvSpeedUp"));
+                    yield return new WaitForSeconds(10f);
+                    ec.RemoveTimeScale(timeScaleEpikEnv2);
+                    break;
+                case "BaldiIsHappier":
+                    ec = Singleton<BaseGameManager>.Instance.Ec;
+                    ec.GetBaldi().GetAngry(-4f);
+                    
+                    break;
+                case "TpRandomRoom":
+                    ec = Singleton<BaseGameManager>.Instance.Ec;
+                    
+                    var cells4 = ec.AllTilesNoGarbage(false, false); ;
+                    var rndcell = cells4[UnityEngine.Random.Range(0, cells4.Count)];
+                    while (!rndcell.room)
+                    {
+                        rndcell = cells4[UnityEngine.Random.Range(0, cells4.Count)];
+                    }
+                    Singleton<CoreGameManager>.Instance.GetPlayer(0).Teleport(new Vector3(rndcell.position.x, 0, rndcell.position.z));
+                    break;
+                case "CrazyNpcSpeed":
+                    ec = Singleton<BaseGameManager>.Instance.Ec;
+                    var timeScaleEpik99 = new TimeScaleModifier(20f, 1, 1);
+                    ec.AddTimeScale(timeScaleEpik99);
+                    NewGauge(durationCommandNpc, BasePlugin.asm.Get<Sprite>("Spr_NpcExtremeSpeedUp"));
+                    yield return new WaitForSeconds(durationCommandNpc);
+                    ec.RemoveTimeScale(timeScaleEpik99);
+                    durationCommandNpc += 2;
+                    break;
+                case "Negative500stamina":
+                    Singleton<CoreGameManager>.Instance.GetPlayer(0).plm.stamina = -500;
+                    break;
+
+
+
+
+
+
 
             }
             yield return "";

@@ -8,7 +8,7 @@
 
 
 <Target Name="PostBuildCopy" AfterTargets="Build">
-  <Copy SourceFiles="$(TargetPath)" DestinationFolder="C:\Program Files (x86)\Steam\steamapps\common\Baldi's Basics Plus\BepInEx\plugins\YoutubeIntegrationBB" />
+  <Copy SourceFiles="$(TargetPath)" DestinationFolder="C:\Program Files (x86)\Steam\steamapps\common\Baldi's Basics Plus\BepInEx\plugins" />
 </Target>
 
   <ItemGroup>

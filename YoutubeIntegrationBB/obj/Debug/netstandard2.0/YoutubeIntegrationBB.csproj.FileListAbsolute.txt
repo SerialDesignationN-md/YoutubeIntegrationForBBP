@@ -97,3 +97,4 @@ C:\Users\lucas\source\repos\YoutubeIntegrationBB\YoutubeIntegrationBB\obj\Debug\
 C:\Users\lucas\source\repos\YoutubeIntegrationBB\YoutubeIntegrationBB\obj\Debug\netstandard2.0\YoutubeI.0244B46A.Up2Date
 C:\Users\lucas\source\repos\YoutubeIntegrationBB\YoutubeIntegrationBB\obj\Debug\netstandard2.0\YoutubeIntegrationBB.dll
 C:\Users\lucas\source\repos\YoutubeIntegrationBB\YoutubeIntegrationBB\obj\Debug\netstandard2.0\YoutubeIntegrationBB.pdb
+C:\Users\lucas\source\repos\YoutubeIntegrationBB\YoutubeIntegrationBB\obj\Debug\netstandard2.0\YoutubeIntegrationBB.sourcelink.json
